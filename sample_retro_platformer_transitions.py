@@ -225,6 +225,7 @@ class PlatformerMacroSampler:
         return action
 
     def _build_macros(self) -> list[tuple[str, list[int], float]]:
+        """Defines a set of candidate macros with associated sampling weights. The weights can be tuned to bias towards more common or effective platformer actions."""
         macro_specs = [
             ("NOOP", [], 0.06),
             ("RIGHT", ["RIGHT"], 0.30),
