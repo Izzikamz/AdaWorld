@@ -167,3 +167,4 @@ cython_debug/
 # Generated datasets and videos
 data/
 roms_unified/
+third_party/

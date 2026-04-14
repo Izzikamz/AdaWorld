@@ -1,0 +1,135 @@
+AdaWorld Run Notes
+==================
+
+Environment
+-----------
+- Recommended env for current Retro workflow:
+  - conda env: retro-arm
+  - python: /Users/izzikampono/miniforge3/envs/retro-arm/bin/python
+- Core package in use: stable_retro
+
+
+1) sample_retro_transitions.py  (PRIMARY FOR EXPERIMENT)
+--------------------------------------------------------
+Purpose:
+- Collect labeled transition tuples for latent-action analysis:
+  - (frame_t, frame_t+1, action_vector, action_label, game/system, reward, terminal flags)
+- Designed to match Stage 1 in project_outline.md.
+
+Output:
+- --out-root/frames/<game>/ep_xxxx/step_yyyyy_t.(jpg|png)
+- --out-root/frames/<game>/ep_xxxx/step_yyyyy_tp1.(jpg|png)
+- --out-root/transitions.jsonl
+- --out-root/summary.json
+
+Hyperparameters / CLI:
+- --out-root (default: data/retro_experiment)
+- --episodes-per-game (default: 3)
+- --steps-per-episode (default: 500)
+- --max-games (default: None)
+- --games (default: None; comma-separated game IDs)
+- --seed (default: 42)
+- --image-ext (default: jpg; options: jpg, png)
+- --save-mp4 (flag; save per-episode mp4 under --out-root/videos)
+
+Notes:
+- Uses stable_retro.Actions.ALL (full action space sampling).
+- action_label is generated from pressed buttons (NOOP if none).
+- Filters to games with imported ROMs only.
+- If --save-mp4 is enabled, also writes one mp4 per episode.
+
+Example (smoke test):
+- python sample_retro_transitions.py \
+    --games 1942-Nes-v0,AddamsFamily-Sms-v0 \
+    --episodes-per-game 1 \
+    --steps-per-episode 30 \
+    --out-root data/retro_experiment_smoke
+
+Example (bigger run):
+- python sample_retro_transitions.py \
+    --games SuperMarioBros-Nes-v0,AdventureIslandII-Nes-v0,NinjaGaiden-Nes-v0,SonicTheHedgehog-Sms-v0,WonderBoyInMonsterWorld-Sms-v0,AddamsFamily-Sms-v0 \
+    --episodes-per-game 20 \
+    --steps-per-episode 400 \
+    --out-root data/retro_experiment_v1
+
+
+2) sample_stableretro.py  (VIDEO-ONLY SAMPLER)
+-----------------------------------------------
+Purpose:
+- Generate mp4 gameplay clips for each imported Stable-Retro game.
+
+Output:
+- <root>/retro/<game>/train/*.mp4
+- <root>/retro/<game>/test/*.mp4
+
+Hyperparameters / CLI:
+- --num-logs (default: 100)
+- --timeout (default: 1000)
+- --root (default: data)
+- --max-games (default: None)
+- --game (default: None)
+- --skip-test (flag)
+
+Notes:
+- Good for qualitative checks and quick sanity tests.
+- Not ideal for labeled transition analysis because it stores only videos, not per-step metadata.
+
+Example:
+- python sample_stableretro.py --game 1942-Nes-v0 --num-logs 1 --timeout 120 --skip-test
+
+
+3) sample_retro.py  (LEGACY / OPENAI RETRO API)
+------------------------------------------------
+Purpose:
+- Older sampler using import retro (OpenAI retro-style API).
+
+Status:
+- Legacy script. Kept for reference.
+- Current working flow in this repo uses stable_retro via sample_stableretro.py or sample_retro_transitions.py.
+
+
+4) sample_procgen.py  (PROCGEN DATA)
+------------------------------------
+Purpose:
+- Generate Procgen videos for multiple Procgen environments.
+
+Output:
+- data/procgen/<env>/train/*.mp4
+- data/procgen/<env>/test/*.mp4
+
+Hyperparameters (in-code dataclass, no argparse):
+- num_logs = 10000
+- timeout = 1000
+- root = data
+
+Notes:
+- Script currently uses hardcoded env list and defaults in code.
+
+
+ROM Import / Compatibility Quick Notes
+--------------------------------------
+- Import command:
+  - python -m stable_retro.import <PATH>
+- Important:
+  - For some datasets packaged as zip-of-zips, importing from extracted folder works better than top-level archive.
+  - NES and SMS imports are confirmed working in this workspace.
+
+
+Quick Validation Commands
+-------------------------
+List games with imported ROMs:
+- python - <<'PY'
+import stable_retro as retro
+ok=[]
+for g in retro.data.list_games():
+    try:
+        retro.data.get_romfile_path(g)
+        ok.append(g)
+    except FileNotFoundError:
+        pass
+print(len(ok))
+print("\n".join(sorted(ok)[:200]))
+PY
+
+Check transition dataset size:
+- wc -l data/retro_experiment_v1/transitions.jsonl
