@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,14 +39,19 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def _build_label_vocab(paths: list[Path]) -> dict[str, int]:
-    """Scan all provided JSONL files to build a mapping from action labels to integer IDs."""
+def _canonicalize_action_label(action_label: str) -> str:
+    """Map derived labels to canonical IDs used for training/eval lookups."""
+    label = str(action_label)
+    if label.startswith("RECOVERY_"):
+        return label[len("RECOVERY_") :]
+    return label
+
+
+def _build_label_vocab(records: list[dict[str, Any]]) -> dict[str, int]:
+    """Build a mapping from canonicalized action labels to integer IDs."""
     labels = set()
-    for path in paths:
-        if not path.exists():
-            continue
-        for row in _load_jsonl(path):
-            labels.add(str(row.get("action_label", "UNKNOWN")))
+    for row in records:
+        labels.add(_canonicalize_action_label(str(row.get("action_label", "UNKNOWN"))))
     return {label: index for index, label in enumerate(sorted(labels))}
 
 
@@ -66,13 +72,14 @@ class RetroTransitionDataset(Dataset):
         label_to_id: dict[str, int],
         image_size: int | None = None,
         normalize: str = "zero_one",
+        records: list[dict[str, Any]] | None = None,
     ) -> None:
         super().__init__()
         self.jsonl_path = Path(jsonl_path)
         if not self.jsonl_path.exists():
             raise FileNotFoundError(f"Missing JSONL file: {self.jsonl_path}")
 
-        self.records = _load_jsonl(self.jsonl_path)
+        self.records = records if records is not None else _load_jsonl(self.jsonl_path)
         self.root = self.jsonl_path.parent.parent
         self.image_size = image_size
         if normalize not in {"zero_one", "minus_one_one"}:
@@ -122,6 +129,7 @@ class RetroTransitionDataset(Dataset):
     def __getitem__(self, index: int) -> dict[str, Any]:
         row = self.records[index]
         action_label = str(row.get("action_label", "UNKNOWN"))
+        action_label = _canonicalize_action_label(action_label)
 
         frame_t = self._load_image(str(row["frame_t"]))
         frame_tp1 = self._load_image(str(row["frame_tp1"]))
@@ -150,45 +158,76 @@ def create_transition_dataloaders(
 ) -> tuple[dict[str, DataLoader], dict[str, int]]:
     """Create train/val/test dataloaders from a stage dataset directory.
 
-    Required files under dataset_dir:
-    - transitions_train.jsonl
-    - transitions_val.jsonl
-    - transitions_test.jsonl
+    Required file under dataset_dir:
+    - transitions.jsonl
+
+    Split strategy:
+    - Group by (game, episode)
+    - Shuffle groups with a fixed seed
+    - Assign groups to train/val/test with 70/15/15 ratio
+    - Keep all transitions from an episode in a single split
 
     Returns:
     - dataloaders: dict with keys "train", "val", "test" and DataLoader values
-    - label_to_id: dict mapping action labels to integer IDs
+    - label_to_id: dict mapping canonical action labels to integer IDs
     """
 
     cfg = config or TransitionLoaderConfig()
     root = Path(dataset_dir)
-    train_jsonl = root / "transitions_train.jsonl"
-    val_jsonl = root / "transitions_val.jsonl"
-    test_jsonl = root / "transitions_test.jsonl"
+    transitions_jsonl = root / "transitions.jsonl"
 
-    for required in [train_jsonl, val_jsonl, test_jsonl]:
-        if not required.exists():
-            raise FileNotFoundError(f"Missing split file: {required}")
+    if not transitions_jsonl.exists():
+        raise FileNotFoundError(f"Missing transitions file: {transitions_jsonl}")
 
-    label_to_id = _build_label_vocab([train_jsonl, val_jsonl, test_jsonl])
+    all_records = _load_jsonl(transitions_jsonl)
+    if not all_records:
+        raise ValueError(f"No transitions found in: {transitions_jsonl}")
+
+    episode_pairs = {
+        (str(row.get("game", "")), int(row.get("episode", 0)))
+        for row in all_records
+    }
+    shuffled_pairs = list(episode_pairs)
+    random.Random(42).shuffle(shuffled_pairs)
+
+    pair_count = len(shuffled_pairs)
+    train_count = int(pair_count * 0.70)
+    val_count = int(pair_count * 0.15)
+
+    train_pairs = set(shuffled_pairs[:train_count])
+    val_pairs = set(shuffled_pairs[train_count : train_count + val_count])
+    test_pairs = set(shuffled_pairs[train_count + val_count :])
+
+    def in_split(row: dict[str, Any], pair_set: set[tuple[str, int]]) -> bool:
+        pair = (str(row.get("game", "")), int(row.get("episode", 0)))
+        return pair in pair_set
+
+    train_records = [row for row in all_records if in_split(row, train_pairs)]
+    val_records = [row for row in all_records if in_split(row, val_pairs)]
+    test_records = [row for row in all_records if in_split(row, test_pairs)]
+
+    label_to_id = _build_label_vocab(train_records)
 
     train_dataset = RetroTransitionDataset(
-        jsonl_path=train_jsonl,
+        jsonl_path=transitions_jsonl,
         label_to_id=label_to_id,
         image_size=cfg.image_size,
         normalize=cfg.normalize,
+        records=train_records,
     )
     val_dataset = RetroTransitionDataset(
-        jsonl_path=val_jsonl,
+        jsonl_path=transitions_jsonl,
         label_to_id=label_to_id,
         image_size=cfg.image_size,
         normalize=cfg.normalize,
+        records=val_records,
     )
     test_dataset = RetroTransitionDataset(
-        jsonl_path=test_jsonl,
+        jsonl_path=transitions_jsonl,
         label_to_id=label_to_id,
         image_size=cfg.image_size,
         normalize=cfg.normalize,
+        records=test_records,
     )
 
     dataloaders = {
