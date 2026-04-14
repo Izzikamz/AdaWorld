@@ -1,0 +1,59 @@
+{
+  "out_root": "data/retro_platformer_stage1_v1",
+  "metadata": "data/retro_platformer_stage1_v1/transitions.jsonl",
+  "total_games": 6,
+  "total_transitions": 18000,
+  "per_game_transitions": {
+    "AdventureIslandII-Nes-v0": 3000,
+    "Castlevania-Nes-v0": 3000,
+    "NinjaGaiden-Nes-v0": 3000,
+    "SonicTheHedgehog-Sms-v0": 3000,
+    "SuperMarioBros-Nes-v0": 3000,
+    "SuperMarioBros3-Nes-v0": 3000
+  },
+  "platformer_mode": "tag_or_name",
+  "all_games": false,
+  "action_policy": "platformer_macro_v1",
+  "top_action_labels": [
+    [
+      "RIGHT",
+      5403
+    ],
+    [
+      "RIGHT+B",
+      4630
+    ],
+    [
+      "RIGHT+A",
+      3348
+    ],
+    [
+      "RIGHT+A+B",
+      1337
+    ],
+    [
+      "NOOP",
+      952
+    ],
+    [
+      "B",
+      622
+    ],
+    [
+      "LEFT",
+      612
+    ],
+    [
+      "A",
+      560
+    ],
+    [
+      "LEFT+A",
+      336
+    ],
+    [
+      "RECOVERY_RIGHT+A+B",
+      200
+    ]
+  ]
+}

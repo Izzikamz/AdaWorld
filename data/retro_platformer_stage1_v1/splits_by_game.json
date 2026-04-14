@@ -1,0 +1,35 @@
+{
+  "strategy": "heldout_env_by_game",
+  "seed": 42,
+  "all_games": [
+    "AdventureIslandII-Nes-v0",
+    "Castlevania-Nes-v0",
+    "NinjaGaiden-Nes-v0",
+    "SonicTheHedgehog-Sms-v0",
+    "SuperMarioBros-Nes-v0",
+    "SuperMarioBros3-Nes-v0"
+  ],
+  "train_games": [
+    "Castlevania-Nes-v0",
+    "NinjaGaiden-Nes-v0",
+    "SonicTheHedgehog-Sms-v0",
+    "SuperMarioBros-Nes-v0"
+  ],
+  "val_games": [
+    "AdventureIslandII-Nes-v0"
+  ],
+  "test_games": [
+    "SuperMarioBros3-Nes-v0"
+  ],
+  "counts": {
+    "val": 3000,
+    "train": 12000,
+    "test": 3000
+  },
+  "files": {
+    "all": "data/retro_platformer_stage1_v1/transitions.jsonl",
+    "train": "data/retro_platformer_stage1_v1/transitions_train.jsonl",
+    "val": "data/retro_platformer_stage1_v1/transitions_val.jsonl",
+    "test": "data/retro_platformer_stage1_v1/transitions_test.jsonl"
+  }
+}
